@@ -1,51 +1,46 @@
 package com.fulfilment.application.monolith.stores;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class LegacyStoreManagerGateway {
 
+  private static final Logger LOGGER = Logger.getLogger(LegacyStoreManagerGateway.class);
+
   public void createStoreOnLegacySystem(Store store) {
     // just to emulate as this would send this to a legacy system, let's write a temp file with the
-    writeToFile(store);
+    writeToFile(store, "created");
   }
 
   public void updateStoreOnLegacySystem(Store store) {
     // just to emulate as this would send this to a legacy system, let's write a temp file with the
-    writeToFile(store);
+    writeToFile(store, "updated");
   }
 
-  private void writeToFile(Store store) {
+  private void writeToFile(Store store, String action) {
+    String content =
+        "Store "
+            + action
+            + ". [ id ="
+            + store.id
+            + " ] [ name ="
+            + store.name
+            + " ] [ items on stock ="
+            + store.quantityProductsInStock
+            + "]";
     try {
-      // Step 1: Create a temporary file
-      Path tempFile;
-
-      tempFile = Files.createTempFile(store.name, ".txt");
-
-      System.out.println("Temporary file created at: " + tempFile.toString());
-
-      // Step 2: Write data to the temporary file
-      String content =
-          "Store created. [ name ="
-              + store.name
-              + " ] [ items on stock ="
-              + store.quantityProductsInStock
-              + "]";
-      Files.write(tempFile, content.getBytes());
-      System.out.println("Data written to temporary file.");
-
-      // Step 3: Optionally, read the data back to verify
-      String readContent = new String(Files.readAllBytes(tempFile));
-      System.out.println("Data read from temporary file: " + readContent);
-
-      // Step 4: Delete the temporary file when done
+      Path tempFile = Files.createTempFile("store-" + store.id + "-", ".txt");
+      Files.writeString(tempFile, content, StandardCharsets.UTF_8);
+      LOGGER.infof("Legacy system notified: %s", Files.readString(tempFile, StandardCharsets.UTF_8));
       Files.delete(tempFile);
-      System.out.println("Temporary file deleted.");
-
-    } catch (Exception e) {
-      e.printStackTrace();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to sync store " + store.id + " to legacy system", e);
     }
   }
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -27,7 +28,8 @@ import org.jboss.logging.Logger;
 @Consumes("application/json")
 public class StoreResource {
 
-  @Inject LegacyStoreManagerGateway legacyStoreManagerGateway;
+  // Legacy sync happens in LegacyStoreSyncObserver, after the transaction commits.
+  @Inject Event<StoreChangedEvent> storeChangedEvent;
 
   private static final Logger LOGGER = Logger.getLogger(StoreResource.class.getName());
 
@@ -55,7 +57,7 @@ public class StoreResource {
 
     store.persist();
 
-    legacyStoreManagerGateway.createStoreOnLegacySystem(store);
+    storeChangedEvent.fire(new StoreChangedEvent(store, StoreChangedEvent.Type.CREATED));
 
     return Response.ok(store).status(201).build();
   }
@@ -77,34 +79,34 @@ public class StoreResource {
     entity.name = updatedStore.name;
     entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
 
-    legacyStoreManagerGateway.updateStoreOnLegacySystem(updatedStore);
+    storeChangedEvent.fire(new StoreChangedEvent(entity, StoreChangedEvent.Type.UPDATED));
 
     return entity;
   }
 
+  /**
+   * Partial update: only fields present in the request are applied. Because the stock is a
+   * primitive {@code int}, a value of 0 is treated as "not provided"; use PUT to set it to 0.
+   */
   @PATCH
   @Path("{id}")
   @Transactional
   public Store patch(Long id, Store updatedStore) {
-    if (updatedStore.name == null) {
-      throw new WebApplicationException("Store Name was not set on request.", 422);
-    }
-
     Store entity = Store.findById(id);
 
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
 
-    if (entity.name != null) {
+    if (updatedStore.name != null) {
       entity.name = updatedStore.name;
     }
 
-    if (entity.quantityProductsInStock != 0) {
+    if (updatedStore.quantityProductsInStock != 0) {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
 
-    legacyStoreManagerGateway.updateStoreOnLegacySystem(updatedStore);
+    storeChangedEvent.fire(new StoreChangedEvent(entity, StoreChangedEvent.Type.UPDATED));
 
     return entity;
   }
