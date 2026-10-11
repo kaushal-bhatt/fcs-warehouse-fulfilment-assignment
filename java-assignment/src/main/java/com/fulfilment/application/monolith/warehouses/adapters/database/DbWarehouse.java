@@ -29,8 +29,25 @@ public class DbWarehouse {
 
   public DbWarehouse() {}
 
+  public static DbWarehouse from(Warehouse warehouse) {
+    var entity = new DbWarehouse();
+    entity.copyFrom(warehouse);
+    return entity;
+  }
+
+  /** Copies the business fields; the id is owned by the database. */
+  public void copyFrom(Warehouse warehouse) {
+    this.businessUnitCode = warehouse.businessUnitCode;
+    this.location = warehouse.location;
+    this.capacity = warehouse.capacity;
+    this.stock = warehouse.stock;
+    this.createdAt = warehouse.createdAt;
+    this.archivedAt = warehouse.archivedAt;
+  }
+
   public Warehouse toWarehouse() {
     var warehouse = new Warehouse();
+    warehouse.id = this.id;
     warehouse.businessUnitCode = this.businessUnitCode;
     warehouse.location = this.location;
     warehouse.capacity = this.capacity;

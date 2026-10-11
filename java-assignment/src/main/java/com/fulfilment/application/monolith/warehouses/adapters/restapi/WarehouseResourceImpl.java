@@ -1,33 +1,49 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
-import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseRepository;
+import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseNotFoundException;
+import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
+import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import com.warehouse.api.WarehouseResource;
 import com.warehouse.api.beans.Warehouse;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import org.jboss.resteasy.reactive.ResponseStatus;
 
+/**
+ * REST adapter for the generated Warehouse API. Commands go through the domain use cases; simple
+ * reads go straight to the store port.
+ */
 @RequestScoped
 public class WarehouseResourceImpl implements WarehouseResource {
 
-  @Inject private WarehouseRepository warehouseRepository;
+  @Inject WarehouseStore warehouseStore;
+
+  @Inject CreateWarehouseOperation createWarehouseOperation;
 
   @Override
   public List<Warehouse> listAllWarehousesUnits() {
-    return warehouseRepository.getAll().stream().map(this::toWarehouseResponse).toList();
+    return warehouseStore.findAllActive().stream().map(WarehouseApiMapper::toResponse).toList();
   }
 
   @Override
+  @Transactional
+  @ResponseStatus(201)
   public Warehouse createANewWarehouseUnit(@NotNull Warehouse data) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'createANewWarehouseUnit'");
+    var warehouse = WarehouseApiMapper.toDomain(data);
+    createWarehouseOperation.create(warehouse);
+    return WarehouseApiMapper.toResponse(warehouse);
   }
 
   @Override
   public Warehouse getAWarehouseUnitByID(String id) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'getAWarehouseUnitByID'");
+    var warehouse = warehouseStore.findActiveById(parseId(id));
+    if (warehouse == null) {
+      throw notFound(id);
+    }
+    return WarehouseApiMapper.toResponse(warehouse);
   }
 
   @Override
@@ -44,14 +60,15 @@ public class WarehouseResourceImpl implements WarehouseResource {
         "Unimplemented method 'replaceTheCurrentActiveWarehouse'");
   }
 
-  private Warehouse toWarehouseResponse(
-      com.fulfilment.application.monolith.warehouses.domain.models.Warehouse warehouse) {
-    var response = new Warehouse();
-    response.setBusinessUnitCode(warehouse.businessUnitCode);
-    response.setLocation(warehouse.location);
-    response.setCapacity(warehouse.capacity);
-    response.setStock(warehouse.stock);
+  private static Long parseId(String id) {
+    try {
+      return Long.valueOf(id);
+    } catch (NumberFormatException e) {
+      throw notFound(id);
+    }
+  }
 
-    return response;
+  private static WarehouseNotFoundException notFound(String id) {
+    return new WarehouseNotFoundException("Warehouse with id '%s' does not exist", id);
   }
 }
