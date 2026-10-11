@@ -29,7 +29,7 @@ public class ImplementationResponseStatusFilter {
         response.setStatus(status.value());
       }
     } catch (NoSuchMethodException e) {
-      // not an interface-based resource method: nothing to apply
+      // method not public on the resource class: nothing to apply
     }
   }
 }
