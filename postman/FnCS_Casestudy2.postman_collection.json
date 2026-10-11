@@ -1,0 +1,2430 @@
+{
+  "info": {
+    "name": "FnCS_Casestudy2",
+    "description": "Requests for every endpoint of the assignment, with tests. Start the application with a fresh database (./mvnw quarkus:dev -Dquarkus.http.port=8081) and run the whole collection with the Collection Runner, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes from quarkus-smallrye-health.",
+      "item": [
+        {
+          "name": "Readiness (includes database)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"status is UP\", function () { pm.expect(json.status === \"UP\").to.be.true; });",
+                  "pm.test(\"database check is listed\", function () { pm.expect(json.checks.some(c => c.name === \"Database connections health check\")).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/q/health/ready",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "q",
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Readiness includes the datasource check. If the database is down this returns 503, so traffic stops going to the app."
+          }
+        },
+        {
+          "name": "Liveness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"status is UP\", function () { pm.expect(json.status === \"UP\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/q/health/live",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "q",
+                "health",
+                "live"
+              ]
+            },
+            "description": "The application process is alive."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 2 - Store",
+      "description": "Store CRUD. Changes reach the legacy system only after the transaction commits: watch the application log for \"Legacy system notified\".",
+      "item": [
+        {
+          "name": "List stores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"seed store present\", function () { pm.expect(json.some(s => s.name === \"TONSTAD\")).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Seed data: TONSTAD, KALLAX, BESTÅ."
+          }
+        },
+        {
+          "name": "Create store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"id generated\", function () { pm.expect(json.id > 0).to.be.true; });",
+                  "pm.collectionVariables.set(\"storeId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Created after commit; the log shows \"Legacy system notified: Store created\" with the generated id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"MALM\",\n  \"quantityProductsInStock\": 12\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create duplicate name (rollback, no legacy call)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"conflict message\", function () { pm.expect(json.error === \"A record with the same unique value already exists\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "The unique constraint fails on commit and the transaction rolls back. The log must NOT show \"Legacy system notified\" for this request (Task 2).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TONSTAD\",\n  \"quantityProductsInStock\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create with id (rejected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () { pm.response.to.have.status(422); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Id was invalidly set on request.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Clients cannot choose the id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 99,\n  \"name\": \"X\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create without name (rejected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () { pm.response.to.have.status(422); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Store Name was not set on request.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Name is required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantityProductsInStock\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create with negative stock (rejected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () { pm.response.to.have.status(422); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Quantity of products in stock cannot be negative.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Stock cannot be negative.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"NEGATIVE\",\n  \"quantityProductsInStock\": -5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update store (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"name updated\", function () { pm.expect(json.name === \"MALM-2\").to.be.true; });",
+                  "pm.test(\"stock updated\", function () { pm.expect(json.quantityProductsInStock === 4).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store/{{storeId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store",
+                "{{storeId}}"
+              ]
+            },
+            "description": "The legacy system receives the saved store, including its id (before the fix it received the request body without id).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"MALM-2\",\n  \"quantityProductsInStock\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch name only (stock kept)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"name updated\", function () { pm.expect(json.name === \"KALLAX-NEW\").to.be.true; });",
+                  "pm.test(\"stock unchanged\", function () { pm.expect(json.quantityProductsInStock === 5).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store/2",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store",
+                "2"
+              ]
+            },
+            "description": "Before the fix, sending only a name reset the stock to 0.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"KALLAX-NEW\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch stock only (no name needed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"stock updated\", function () { pm.expect(json.quantityProductsInStock === 9).to.be.true; });",
+                  "pm.test(\"name unchanged\", function () { pm.expect(json.name === \"KALLAX-NEW\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store/2",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store",
+                "2"
+              ]
+            },
+            "description": "Before the fix, PATCH without a name was rejected with 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantityProductsInStock\": 9\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update unknown store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Store with id of 9999 does not exist.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/store/9999",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store",
+                "9999"
+              ]
+            },
+            "description": "Unknown id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"GHOST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/store/{{storeId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "store",
+                "{{storeId}}"
+              ]
+            },
+            "description": "Deletes the store created above."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product",
+      "description": "Product CRUD with input validation.",
+      "item": [
+        {
+          "name": "List products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"seed product present\", function () { pm.expect(json.some(p => p.name === \"KALLAX\")).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "Seed products."
+          }
+        },
+        {
+          "name": "Create product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"id generated\", function () { pm.expect(json.id > 0).to.be.true; });",
+                  "pm.collectionVariables.set(\"productId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "Creates a product.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"BILLY\",\n  \"description\": \"Bookcase\",\n  \"price\": 49.95,\n  \"stock\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create duplicate name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"conflict message\", function () { pm.expect(json.error === \"A record with the same unique value already exists\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "Unique name, enforced by the database.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"KALLAX\",\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create with negative price (rejected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () { pm.response.to.have.status(422); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Product price cannot be negative.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "Price cannot be negative.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CHEAP\",\n  \"price\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"stock updated\", function () { pm.expect(json.stock === 7).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product/{{productId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product",
+                "{{productId}}"
+              ]
+            },
+            "description": "Full update.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"BILLY-2\",\n  \"price\": 39.95,\n  \"stock\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get unknown product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Product with id of 9999 does not exist.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/product/9999",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product",
+                "9999"
+              ]
+            },
+            "description": "Unknown id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 3 - Warehouse",
+      "description": "Warehouse create, get, archive and replace with all business rules. Rule violations return 400 as declared in the OpenAPI spec.",
+      "item": [
+        {
+          "name": "List active warehouses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"three seed warehouses\", function () { pm.expect(json.length === 3).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Seed: MWH.001 (ZWOLLE-001), MWH.012 (AMSTERDAM-001), MWH.023 (TILBURG-001)."
+          }
+        },
+        {
+          "name": "Get warehouse by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"business unit code\", function () { pm.expect(json.businessUnitCode === \"MWH.012\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse/2",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "2"
+              ]
+            },
+            "description": "{id} is the database id."
+          }
+        },
+        {
+          "name": "Get unknown warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Warehouse with id '999' does not exist\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse/999",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "999"
+              ]
+            },
+            "description": "Unknown id."
+          }
+        },
+        {
+          "name": "Create warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"created with id\", function () { pm.expect(json.id !== undefined).to.be.true; });",
+                  "pm.test(\"code\", function () { pm.expect(json.businessUnitCode === \"MWH.100\").to.be.true; });",
+                  "pm.collectionVariables.set(\"warehouseId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "All rules pass: new code, existing location, room for another warehouse, enough capacity, stock within capacity.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.100\",\n  \"location\": \"EINDHOVEN-001\",\n  \"capacity\": 30,\n  \"stock\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create: business unit code exists",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Business unit code 'MWH.001' already exists\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Business Unit Code verification.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.001\",\n  \"location\": \"EINDHOVEN-001\",\n  \"capacity\": 10,\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create: unknown location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Location 'PARIS-001' does not exist\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Location validation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.101\",\n  \"location\": \"PARIS-001\",\n  \"capacity\": 10,\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create: location already full",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Location 'ZWOLLE-001' already has the maximum number of warehouses (1)\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Creation feasibility: ZWOLLE-001 allows one warehouse.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.102\",\n  \"location\": \"ZWOLLE-001\",\n  \"capacity\": 10,\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create: capacity above what the location has left",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Capacity 60 exceeds the available capacity 50 of location 'AMSTERDAM-001'\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Capacity validation: AMSTERDAM-001 has 100 in total and MWH.012 already uses 50.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.103\",\n  \"location\": \"AMSTERDAM-001\",\n  \"capacity\": 60,\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create: stock above capacity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Stock (11) exceeds the warehouse capacity (10)\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "Stock validation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.104\",\n  \"location\": \"AMSTERDAM-001\",\n  \"capacity\": 10,\n  \"stock\": 11\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace: capacity cannot hold current stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Capacity 20 cannot accommodate the stock 27 of the replaced warehouse\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse/MWH.023/replacement",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "MWH.023",
+                "replacement"
+              ]
+            },
+            "description": "Capacity accommodation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"AMSTERDAM-002\",\n  \"capacity\": 20,\n  \"stock\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace: stock does not match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Stock 20 must match the stock 27 of the replaced warehouse\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse/MWH.023/replacement",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "MWH.023",
+                "replacement"
+              ]
+            },
+            "description": "Stock matching.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"TILBURG-001\",\n  \"capacity\": 40,\n  \"stock\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace: no active warehouse with the code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"No active warehouse with business unit code 'MWH.999'\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse/MWH.999/replacement",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "MWH.999",
+                "replacement"
+              ]
+            },
+            "description": "Unknown business unit code.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"AMSTERDAM-002\",\n  \"capacity\": 40,\n  \"stock\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"same code\", function () { pm.expect(json.businessUnitCode === \"MWH.023\").to.be.true; });",
+                  "pm.test(\"new capacity\", function () { pm.expect(json.capacity === 40).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse/MWH.023/replacement",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "MWH.023",
+                "replacement"
+              ]
+            },
+            "description": "TILBURG-001 allows one warehouse, but the one being replaced does not count. The old record is archived and kept as history.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"TILBURG-001\",\n  \"capacity\": 40,\n  \"stock\": 27\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Old warehouse is archived after replacement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse/3",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "3"
+              ]
+            },
+            "description": "Id 3 was the previous MWH.023."
+          }
+        },
+        {
+          "name": "Archive warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse/{{warehouseId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "{{warehouseId}}"
+              ]
+            },
+            "description": "Sets archivedAt; the row stays in the database."
+          }
+        },
+        {
+          "name": "Archive again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/warehouse/{{warehouseId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "{{warehouseId}}"
+              ]
+            },
+            "description": "Already archived."
+          }
+        },
+        {
+          "name": "Create: archived code cannot be reused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Business unit code 'MWH.100' already exists\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "A code only comes back through a replacement.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.100\",\n  \"location\": \"EINDHOVEN-001\",\n  \"capacity\": 10,\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bonus - Fulfilment",
+      "description": "Warehouses as fulfilment units of products for stores. Limits: 2 warehouses per product and store, 3 warehouses per store, 5 product types per warehouse. Run after the Task 3 folder.",
+      "item": [
+        {
+          "name": "Setup: extra warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse"
+              ]
+            },
+            "description": "A fourth active warehouse, needed to show the store limit.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessUnitCode\": \"MWH.200\",\n  \"location\": \"AMSTERDAM-001\",\n  \"capacity\": 10,\n  \"stock\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Assign warehouse to product and store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"assignment id\", function () { pm.expect(json.id > 0).to.be.true; });",
+                  "pm.collectionVariables.set(\"assignmentId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "MWH.001 fulfils product 2 for store 1.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2,\n  \"businessUnitCode\": \"MWH.001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Assign the same again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Warehouse MWH.001 already fulfils product 2 for store 1\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Duplicate assignment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2,\n  \"businessUnitCode\": \"MWH.001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Second warehouse for the product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Allowed: 2 of 2.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2,\n  \"businessUnitCode\": \"MWH.012\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Third warehouse for the product (limit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Product 2 is already fulfilled by 2 warehouses for store 1\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Max 2 warehouses per product and store.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2,\n  \"businessUnitCode\": \"MWH.023\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Third warehouse for the store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Allowed: 3 of 3.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 3,\n  \"businessUnitCode\": \"MWH.023\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Fourth warehouse for the store (limit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Store 1 is already fulfilled by 3 warehouses\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Max 3 warehouses per store.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 3,\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup: product A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"productA\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "Extra product types for the warehouse limit.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"BONUS-A\",\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup: product B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"productB\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"BONUS-B\",\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup: product C",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"productC\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/product",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "product"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"BONUS-C\",\n  \"stock\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": 1,\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": 2,\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": 3,\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 4",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": {{productA}},\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": {{productB}},\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Warehouse product type 6 (limit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"Warehouse MWH.200 already stores 5 product types\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Max 5 product types per warehouse.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 2,\n  \"productId\": {{productC}},\n  \"businessUnitCode\": \"MWH.200\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unknown warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"No active warehouse with business unit code 'NOPE'.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "Only active warehouses can be assigned.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2,\n  \"businessUnitCode\": \"NOPE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Missing field",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"message\", function () { pm.expect(json.error === \"storeId, productId and businessUnitCode are required.\").to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/fulfilment",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeId\": 1,\n  \"productId\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace a warehouse that has assignments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{local}}/warehouse/MWH.012/replacement",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "warehouse",
+                "MWH.012",
+                "replacement"
+              ]
+            },
+            "description": "The replacement keeps the business unit code.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"AMSTERDAM-001\",\n  \"capacity\": 50,\n  \"stock\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Assignments carry over to the replacement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test(\"three assignments for store 1\", function () { pm.expect(json.length === 3).to.be.true; });",
+                  "pm.test(\"MWH.012 still listed\", function () { pm.expect(json.some(a => a.businessUnitCode === \"MWH.012\")).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/fulfilment?storeId=1",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment"
+              ],
+              "query": [
+                {
+                  "key": "storeId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Assignments reference the business unit code, so nothing has to be migrated on replacement."
+          }
+        },
+        {
+          "name": "Remove assignment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/fulfilment/{{assignmentId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment",
+                "{{assignmentId}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Remove assignment again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/fulfilment/{{assignmentId}}",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "fulfilment",
+                "{{assignmentId}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "local",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "storeId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "warehouseId",
+      "value": ""
+    },
+    {
+      "key": "assignmentId",
+      "value": ""
+    },
+    {
+      "key": "productA",
+      "value": ""
+    },
+    {
+      "key": "productB",
+      "value": ""
+    },
+    {
+      "key": "productC",
+      "value": ""
+    }
+  ]
+}

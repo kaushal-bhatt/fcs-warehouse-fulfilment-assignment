@@ -30,7 +30,13 @@ cd java-assignment
 ```
 
 The coverage report ends up in `java-assignment/target/jacoco-report/index.html`, and the same
-report is attached to every CI run. Health checks are available at `/q/health/live` and
+report is attached to every CI run.
+
+To try the API by hand, import
+[postman/FnCS_Casestudy2.postman_collection.json](postman/FnCS_Casestudy2.postman_collection.json).
+It has a request for every endpoint and rule, each with tests, and expects the application on
+port 8081 with a fresh database. Running the whole collection top to bottom with the Collection
+Runner goes through all tasks, including the bonus. Health checks are available at `/q/health/live` and
 `/q/health/ready`; readiness includes the database connection.
 
 Two things I ran into on my own machine, in case they help:

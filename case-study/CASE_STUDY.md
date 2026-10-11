@@ -44,8 +44,8 @@ about. We cleaned up the data, gave them a proper way to correct orders and adde
 it. Since then I treat corrections as something the system has to record explicitly, which is
 exactly what cost data needs to stay auditable.
 
-Later, at an e-commerce company in Saudi Arabia, I worked on centralising prices across several
-warehouses, with delivery charges calculated from the warehouse that actually shipped the order.
+Later, at Boutiqaat, I worked on centralising prices across their warehouses in Saudi Arabia,
+with delivery charges calculated from the warehouse that actually shipped the order.
 The same product had a different cost depending on where it came from. That is why I would
 allocate costs along the real fulfilment path rather than spread them as an average.
 
