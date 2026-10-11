@@ -54,6 +54,11 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-postgresql</artifactId>
         </dependency>
+        <!-- /q/health/live and /q/health/ready; readiness includes the datasource check -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
 
         <!-- Testing: -->
         <dependency>
