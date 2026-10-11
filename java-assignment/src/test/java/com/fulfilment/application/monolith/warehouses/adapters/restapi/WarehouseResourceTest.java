@@ -5,9 +5,12 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseRepository;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -16,6 +19,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 public class WarehouseResourceTest {
 
   private static final String PATH = "warehouse";
+
+  @Inject WarehouseRepository warehouseRepository;
 
   @Test
   public void listShouldReturnActiveWarehouses() {
@@ -157,6 +162,53 @@ public class WarehouseResourceTest {
         .then()
         .statusCode(400)
         .body("error", is("Business unit code 'RES.013' already exists"));
+  }
+
+  @Test
+  public void replaceShouldArchiveCurrentAndKeepHistory() {
+    String oldId = create("RES.020", "EINDHOVEN-001", 20, 8);
+
+    String newId =
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"location\":\"EINDHOVEN-001\",\"capacity\":30,\"stock\":8}")
+            .when()
+            .post(PATH + "/RES.020/replacement")
+            .then()
+            .statusCode(200)
+            .body("businessUnitCode", is("RES.020"))
+            .body("capacity", is(30))
+            .extract()
+            .path("id");
+
+    given().when().get(PATH + "/" + oldId).then().statusCode(404);
+    given().when().get(PATH + "/" + newId).then().statusCode(200).body("capacity", is(30));
+    assertEquals(
+        2,
+        warehouseRepository.getAll().stream()
+            .filter(w -> w.businessUnitCode.equals("RES.020"))
+            .count());
+  }
+
+  @ParameterizedTest(name = "{2}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "MWH.999 | {\"location\":\"AMSTERDAM-002\",\"capacity\":40,\"stock\":5} | 404 | No active warehouse with business unit code 'MWH.999'",
+        "MWH.023 | {\"businessUnitCode\":\"MWH.012\",\"location\":\"TILBURG-001\",\"capacity\":40,\"stock\":27} | 400 | Business unit code 'MWH.012' in body does not match 'MWH.023' in path",
+        "MWH.023 | {\"location\":\"AMSTERDAM-002\",\"capacity\":20,\"stock\":5} | 400 | Capacity 20 cannot accommodate the stock 27 of the replaced warehouse",
+        "MWH.023 | {\"location\":\"TILBURG-001\",\"capacity\":40,\"stock\":20} | 400 | Stock 20 must match the stock 27 of the replaced warehouse"
+      })
+  public void replaceBreakingRuleShouldBeRejected(
+      String code, String body, int status, String expectedError) {
+    given()
+        .contentType(ContentType.JSON)
+        .body(body)
+        .when()
+        .post(PATH + "/" + code + "/replacement")
+        .then()
+        .statusCode(status)
+        .body("error", is(expectedError));
   }
 
   private static String create(String code, String location, int capacity, int stock) {

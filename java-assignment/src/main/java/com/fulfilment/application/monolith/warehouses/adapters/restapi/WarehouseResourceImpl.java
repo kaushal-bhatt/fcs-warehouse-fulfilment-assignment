@@ -1,8 +1,10 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
 import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseNotFoundException;
+import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseValidationException;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ArchiveWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
+import com.fulfilment.application.monolith.warehouses.domain.ports.ReplaceWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import com.warehouse.api.WarehouseResource;
 import com.warehouse.api.beans.Warehouse;
@@ -25,6 +27,8 @@ public class WarehouseResourceImpl implements WarehouseResource {
   @Inject CreateWarehouseOperation createWarehouseOperation;
 
   @Inject ArchiveWarehouseOperation archiveWarehouseOperation;
+
+  @Inject ReplaceWarehouseOperation replaceWarehouseOperation;
 
   @Override
   public List<Warehouse> listAllWarehousesUnits() {
@@ -52,11 +56,20 @@ public class WarehouseResourceImpl implements WarehouseResource {
   }
 
   @Override
+  @Transactional
   public Warehouse replaceTheCurrentActiveWarehouse(
       String businessUnitCode, @NotNull Warehouse data) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException(
-        "Unimplemented method 'replaceTheCurrentActiveWarehouse'");
+    var warehouse = WarehouseApiMapper.toDomain(data);
+    if (warehouse.businessUnitCode == null) {
+      warehouse.businessUnitCode = businessUnitCode;
+    } else if (!warehouse.businessUnitCode.equals(businessUnitCode)) {
+      throw new WarehouseValidationException(
+          "Business unit code '%s' in body does not match '%s' in path",
+          warehouse.businessUnitCode,
+          businessUnitCode);
+    }
+    replaceWarehouseOperation.replace(warehouse);
+    return WarehouseApiMapper.toResponse(warehouse);
   }
 
   private com.fulfilment.application.monolith.warehouses.domain.models.Warehouse findActive(
