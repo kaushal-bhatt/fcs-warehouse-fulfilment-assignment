@@ -45,7 +45,9 @@ public class WarehouseRepositoryTest {
 
     assertNull(repository.findActiveById(warehouse.id));
     assertNull(repository.findByBusinessUnitCode("REPO.002"));
-    assertTrue(repository.findActiveByLocation("HELMOND-001").isEmpty());
+    assertFalse(
+        repository.findActiveByLocation("HELMOND-001").stream()
+            .anyMatch(w -> w.businessUnitCode.equals("REPO.002")));
     assertFalse(
         repository.findAllActive().stream().anyMatch(w -> w.businessUnitCode.equals("REPO.002")));
     assertTrue(repository.getAll().stream().anyMatch(w -> w.businessUnitCode.equals("REPO.002")));

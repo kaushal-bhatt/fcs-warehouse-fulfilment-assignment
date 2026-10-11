@@ -1,6 +1,7 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
 import com.fulfilment.application.monolith.warehouses.domain.exceptions.WarehouseNotFoundException;
+import com.fulfilment.application.monolith.warehouses.domain.ports.ArchiveWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import com.warehouse.api.WarehouseResource;
@@ -23,6 +24,8 @@ public class WarehouseResourceImpl implements WarehouseResource {
 
   @Inject CreateWarehouseOperation createWarehouseOperation;
 
+  @Inject ArchiveWarehouseOperation archiveWarehouseOperation;
+
   @Override
   public List<Warehouse> listAllWarehousesUnits() {
     return warehouseStore.findAllActive().stream().map(WarehouseApiMapper::toResponse).toList();
@@ -39,17 +42,13 @@ public class WarehouseResourceImpl implements WarehouseResource {
 
   @Override
   public Warehouse getAWarehouseUnitByID(String id) {
-    var warehouse = warehouseStore.findActiveById(parseId(id));
-    if (warehouse == null) {
-      throw notFound(id);
-    }
-    return WarehouseApiMapper.toResponse(warehouse);
+    return WarehouseApiMapper.toResponse(findActive(id));
   }
 
   @Override
+  @Transactional
   public void archiveAWarehouseUnitByID(String id) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'archiveAWarehouseUnitByID'");
+    archiveWarehouseOperation.archive(findActive(id));
   }
 
   @Override
@@ -58,6 +57,15 @@ public class WarehouseResourceImpl implements WarehouseResource {
     // TODO Auto-generated method stub
     throw new UnsupportedOperationException(
         "Unimplemented method 'replaceTheCurrentActiveWarehouse'");
+  }
+
+  private com.fulfilment.application.monolith.warehouses.domain.models.Warehouse findActive(
+      String id) {
+    var warehouse = warehouseStore.findActiveById(parseId(id));
+    if (warehouse == null) {
+      throw notFound(id);
+    }
+    return warehouse;
   }
 
   private static Long parseId(String id) {

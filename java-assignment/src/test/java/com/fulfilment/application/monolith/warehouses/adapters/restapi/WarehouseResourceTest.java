@@ -3,6 +3,7 @@ package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -108,6 +109,66 @@ public class WarehouseResourceTest {
         .then()
         .statusCode(400)
         .body("error", is("Request body is required"));
+  }
+
+  @Test
+  public void archiveShouldHideWarehouseAndFreeItsLocationSlot() {
+    // HELMOND-001 accepts a single warehouse
+    String id = create("RES.010", "HELMOND-001", 20, 5);
+    given()
+        .contentType(ContentType.JSON)
+        .body(body("RES.011", "HELMOND-001", 20, 5))
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(400);
+
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+
+    given().when().get(PATH + "/" + id).then().statusCode(404);
+    given().when().get(PATH).then().statusCode(200).body(not(containsString("RES.010")));
+    create("RES.011", "HELMOND-001", 20, 5);
+  }
+
+  @Test
+  public void archiveTwiceShouldReturnNotFound() {
+    String id = create("RES.012", "EINDHOVEN-001", 10, 1);
+
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+    given().when().delete(PATH + "/" + id).then().statusCode(404);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"999999", "not-a-number"})
+  public void archiveUnknownIdShouldReturnNotFound(String id) {
+    given().when().delete(PATH + "/" + id).then().statusCode(404);
+  }
+
+  @Test
+  public void archivedBusinessUnitCodeCannotBeReusedByCreate() {
+    String id = create("RES.013", "EINDHOVEN-001", 10, 1);
+    given().when().delete(PATH + "/" + id).then().statusCode(204);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(body("RES.013", "EINDHOVEN-001", 10, 1))
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(400)
+        .body("error", is("Business unit code 'RES.013' already exists"));
+  }
+
+  private static String create(String code, String location, int capacity, int stock) {
+    return given()
+        .contentType(ContentType.JSON)
+        .body(body(code, location, capacity, stock))
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(201)
+        .extract()
+        .path("id");
   }
 
   private static String body(String code, String location, int capacity, int stock) {
