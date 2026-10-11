@@ -14,9 +14,9 @@ domain model, a WarehouseStore port and a separate DbWarehouse entity behind it.
 
 The one I would change first is Store. While working on Task 2 I noticed how much ends up
 inside StoreResource: persistence, validation and the legacy integration all live in the REST
-class, and because the data access is static I needed a full @QuarkusTest for every single
-Store test. Moving it to a repository with a small service on top would give the transaction
-and the after-commit legacy sync one clear home, and make it much easier to test.
+class, and because the data access is static every StoreResource test needs a running Quarkus
+application and database. Moving it to a repository with a small service on top would give the
+transaction and the after-commit legacy sync one clear home, and make it much easier to test.
 
 I would not turn Product and Store into full hexagonal modules though. Warehouse deserves that
 structure because it has real rules: capacity, location limits, replacement. Thanks to that I
@@ -24,7 +24,8 @@ could test all of them with plain unit tests and reuse the same validator for cr
 Product and Store are simple CRUD, and adding a domain model there would mostly add mapping code.
 
 Two more things I'd fix along the way. First, I'd stop returning JPA entities directly from the
-API, because today the table and the contract are tied together and clients can even send an id.
+API, because today the table and the contract are tied together and every endpoint has to guard
+fields like the id by hand.
 Second, I'd replace drop-and-create plus import.sql with Flyway migrations, and let the database
 protect important rules as well, for example a unique index on the business unit code of active
 warehouses. At the moment the location limits are only checked in code, so two requests arriving
