@@ -1,7 +1,5 @@
 package com.fulfilment.application.monolith.stores;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
@@ -17,10 +15,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ExceptionMapper;
-import jakarta.ws.rs.ext.Provider;
 import java.util.List;
-import org.jboss.logging.Logger;
 
 @Path("store")
 @ApplicationScoped
@@ -30,8 +25,6 @@ public class StoreResource {
 
   // Legacy sync happens in LegacyStoreSyncObserver, after the transaction commits.
   @Inject Event<StoreChangedEvent> storeChangedEvent;
-
-  private static final Logger LOGGER = Logger.getLogger(StoreResource.class.getName());
 
   @GET
   public List<Store> get() {
@@ -54,6 +47,8 @@ public class StoreResource {
     if (store.id != null) {
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
+    requireName(store);
+    validateValues(store);
 
     store.persist();
 
@@ -66,9 +61,8 @@ public class StoreResource {
   @Path("{id}")
   @Transactional
   public Store update(Long id, Store updatedStore) {
-    if (updatedStore.name == null) {
-      throw new WebApplicationException("Store Name was not set on request.", 422);
-    }
+    requireName(updatedStore);
+    validateValues(updatedStore);
 
     Store entity = Store.findById(id);
 
@@ -92,6 +86,8 @@ public class StoreResource {
   @Path("{id}")
   @Transactional
   public Store patch(Long id, Store updatedStore) {
+    validateValues(updatedStore);
+
     Store entity = Store.findById(id);
 
     if (entity == null) {
@@ -123,29 +119,21 @@ public class StoreResource {
     return Response.status(204).build();
   }
 
-  @Provider
-  public static class ErrorMapper implements ExceptionMapper<Exception> {
+  private static void requireName(Store store) {
+    if (store.name == null) {
+      throw new WebApplicationException("Store Name was not set on request.", 422);
+    }
+  }
 
-    @Inject ObjectMapper objectMapper;
-
-    @Override
-    public Response toResponse(Exception exception) {
-      LOGGER.error("Failed to handle request", exception);
-
-      int code = 500;
-      if (exception instanceof WebApplicationException) {
-        code = ((WebApplicationException) exception).getResponse().getStatus();
-      }
-
-      ObjectNode exceptionJson = objectMapper.createObjectNode();
-      exceptionJson.put("exceptionType", exception.getClass().getName());
-      exceptionJson.put("code", code);
-
-      if (exception.getMessage() != null) {
-        exceptionJson.put("error", exception.getMessage());
-      }
-
-      return Response.status(code).entity(exceptionJson).build();
+  // checks the values that are present; PATCH may leave fields out
+  private static void validateValues(Store store) {
+    if (store.name != null
+        && (store.name.isBlank() || store.name.length() > Store.NAME_MAX_LENGTH)) {
+      throw new WebApplicationException(
+          "Store Name must be between 1 and " + Store.NAME_MAX_LENGTH + " characters.", 422);
+    }
+    if (store.quantityProductsInStock < 0) {
+      throw new WebApplicationException("Quantity of products in stock cannot be negative.", 422);
     }
   }
 }

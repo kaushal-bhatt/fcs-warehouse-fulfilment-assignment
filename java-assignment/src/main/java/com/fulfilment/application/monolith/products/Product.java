@@ -11,9 +11,11 @@ import java.math.BigDecimal;
 @Cacheable
 public class Product {
 
+  public static final int NAME_MAX_LENGTH = 40;
+
   @Id @GeneratedValue public Long id;
 
-  @Column(length = 40, unique = true)
+  @Column(length = NAME_MAX_LENGTH, unique = true)
   public String name;
 
   @Column(nullable = true)

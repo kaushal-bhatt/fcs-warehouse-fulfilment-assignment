@@ -9,7 +9,9 @@ import jakarta.persistence.Entity;
 @Cacheable
 public class Store extends PanacheEntity {
 
-  @Column(length = 40, unique = true)
+  public static final int NAME_MAX_LENGTH = 40;
+
+  @Column(length = NAME_MAX_LENGTH, unique = true)
   public String name;
 
   public int quantityProductsInStock;

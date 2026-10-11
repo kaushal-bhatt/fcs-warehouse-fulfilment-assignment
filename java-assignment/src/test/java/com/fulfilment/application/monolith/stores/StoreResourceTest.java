@@ -14,6 +14,8 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 @QuarkusTest
 public class StoreResourceTest {
@@ -54,9 +56,61 @@ public class StoreResourceTest {
         .when()
         .post(PATH)
         .then()
-        .statusCode(500);
+        .statusCode(409)
+        .body("error", is("A record with the same unique value already exists"));
 
     verify(legacyGateway, never()).createStoreOnLegacySystem(any());
+  }
+
+  @Test
+  public void updateToExistingNameShouldReturnConflictAndNotNotify() {
+    int id = createStore("STORE-RENAME", 2);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body("{\"name\":\"KALLAX\",\"quantityProductsInStock\":2}")
+        .when()
+        .put(PATH + "/" + id)
+        .then()
+        .statusCode(409);
+
+    verify(legacyGateway, never()).updateStoreOnLegacySystem(any());
+    given().when().get(PATH + "/" + id).then().body("name", is("STORE-RENAME"));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "missing name | {\"quantityProductsInStock\":5} | Store Name was not set on request.",
+        "blank name | {\"name\":\" \"} | Store Name must be between 1 and 40 characters.",
+        "name too long | {\"name\":\"ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNO\"} | Store Name must be between 1 and 40 characters.",
+        "negative stock | {\"name\":\"STORE-NEGATIVE\",\"quantityProductsInStock\":-5} | Quantity of products in stock cannot be negative."
+      })
+  public void createWithInvalidValuesShouldBeRejected(String label, String body, String error) {
+    given()
+        .contentType(ContentType.JSON)
+        .body(body)
+        .when()
+        .post(PATH)
+        .then()
+        .statusCode(422)
+        .body("error", is(error));
+
+    verifyNoInteractions(legacyGateway);
+  }
+
+  @Test
+  public void patchWithNegativeStockShouldBeRejected() {
+    given()
+        .contentType(ContentType.JSON)
+        .body("{\"quantityProductsInStock\":-1}")
+        .when()
+        .patch(PATH + "/1")
+        .then()
+        .statusCode(422);
+
+    verifyNoInteractions(legacyGateway);
   }
 
   @Test

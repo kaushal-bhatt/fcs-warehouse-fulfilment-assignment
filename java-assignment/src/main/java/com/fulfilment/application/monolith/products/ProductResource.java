@@ -1,7 +1,5 @@
 package com.fulfilment.application.monolith.products;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -15,10 +13,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ExceptionMapper;
-import jakarta.ws.rs.ext.Provider;
+import java.math.BigDecimal;
 import java.util.List;
-import org.jboss.logging.Logger;
 
 @Path("product")
 @ApplicationScoped
@@ -27,8 +23,6 @@ import org.jboss.logging.Logger;
 public class ProductResource {
 
   @Inject ProductRepository productRepository;
-
-  private static final Logger LOGGER = Logger.getLogger(ProductResource.class.getName());
 
   @GET
   public List<Product> get() {
@@ -51,6 +45,7 @@ public class ProductResource {
     if (product.id != null) {
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
+    validate(product);
 
     productRepository.persist(product);
     return Response.ok(product).status(201).build();
@@ -60,9 +55,7 @@ public class ProductResource {
   @Path("{id}")
   @Transactional
   public Product update(Long id, Product product) {
-    if (product.name == null) {
-      throw new WebApplicationException("Product Name was not set on request.", 422);
-    }
+    validate(product);
 
     Product entity = productRepository.findById(id);
 
@@ -92,29 +85,19 @@ public class ProductResource {
     return Response.status(204).build();
   }
 
-  @Provider
-  public static class ErrorMapper implements ExceptionMapper<Exception> {
-
-    @Inject ObjectMapper objectMapper;
-
-    @Override
-    public Response toResponse(Exception exception) {
-      LOGGER.error("Failed to handle request", exception);
-
-      int code = 500;
-      if (exception instanceof WebApplicationException) {
-        code = ((WebApplicationException) exception).getResponse().getStatus();
-      }
-
-      ObjectNode exceptionJson = objectMapper.createObjectNode();
-      exceptionJson.put("exceptionType", exception.getClass().getName());
-      exceptionJson.put("code", code);
-
-      if (exception.getMessage() != null) {
-        exceptionJson.put("error", exception.getMessage());
-      }
-
-      return Response.status(code).entity(exceptionJson).build();
+  private static void validate(Product product) {
+    if (product.name == null) {
+      throw new WebApplicationException("Product Name was not set on request.", 422);
+    }
+    if (product.name.isBlank() || product.name.length() > Product.NAME_MAX_LENGTH) {
+      throw new WebApplicationException(
+          "Product Name must be between 1 and " + Product.NAME_MAX_LENGTH + " characters.", 422);
+    }
+    if (product.stock < 0) {
+      throw new WebApplicationException("Product stock cannot be negative.", 422);
+    }
+    if (product.price != null && product.price.compareTo(BigDecimal.ZERO) < 0) {
+      throw new WebApplicationException("Product price cannot be negative.", 422);
     }
   }
 }
